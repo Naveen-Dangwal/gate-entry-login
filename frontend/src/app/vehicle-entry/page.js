@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabaseClient";
 import { useState } from "react";
+import { toast } from "react-toastify";
 
 export default function VehicleEntryForm() {
   const [formData, setFormData] = useState({
@@ -11,6 +12,7 @@ export default function VehicleEntryForm() {
     billPhoto: null,
     vehiclePhoto: null,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
@@ -22,66 +24,84 @@ export default function VehicleEntryForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
   
-    // Upload Bill Photo
-const billExt = formData.billPhoto.name.split(".").pop();
-const billFileName = `bill-${Date.now()}.${billExt}`;
+    try {
+      // Upload Bill Photo
+      const billExt = formData.billPhoto.name.split(".").pop();
+      const billFileName = `bill-${Date.now()}.${billExt}`;
 
-const { error: billError } = await supabase.storage
-  .from("vehicle-photos")
-  .upload(billFileName, formData.billPhoto);
+      const { error: billError } = await supabase.storage
+        .from("vehicle-photos")
+        .upload(billFileName, formData.billPhoto);
 
-if (billError) {
-  console.error("Bill upload error:", billError);
-  return;
-}
+      if (billError) {
+        console.error("Bill upload error:", billError);
+        toast.error("Error uploading bill photo");
+        setIsSubmitting(false);
+        return;
+      }
 
-const billPhotoUrl = supabase.storage
-  .from("vehicle-photos")
-  .getPublicUrl(billFileName).data.publicUrl;
+      const billPhotoUrl = supabase.storage
+        .from("vehicle-photos")
+        .getPublicUrl(billFileName).data.publicUrl;
 
-// Upload Vehicle Photo
-const vehicleExt = formData.vehiclePhoto.name.split(".").pop();
-const vehicleFileName = `vehicle-${Date.now()}.${vehicleExt}`;
+      // Upload Vehicle Photo
+      const vehicleExt = formData.vehiclePhoto.name.split(".").pop();
+      const vehicleFileName = `vehicle-${Date.now()}.${vehicleExt}`;
 
-const { error: vehicleError } = await supabase.storage
-  .from("vehicle-photos")
-  .upload(vehicleFileName, formData.vehiclePhoto);
+      const { error: vehicleError } = await supabase.storage
+        .from("vehicle-photos")
+        .upload(vehicleFileName, formData.vehiclePhoto);
 
-if (vehicleError) {
-  console.error("Vehicle upload error:", vehicleError);
-  return;
-}
+      if (vehicleError) {
+        console.error("Vehicle upload error:", vehicleError);
+        toast.error("Error uploading vehicle photo");
+        setIsSubmitting(false);
+        return;
+      }
 
-console.log(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
-
-
-const vehiclePhotoUrl = supabase.storage
-  .from("vehicle-photos")
-  .getPublicUrl(vehicleFileName).data.publicUrl;
-  
-    // 3️⃣ Insert data into database
-    const { error } = await supabase.from("vehicles").insert([
-      {
-        vehicle_number: formData.vehicleNumber,
-        driver_number: formData.driverNumber,
-        bill_amount: formData.billAmount,
-        bill_photo_url: billPhotoUrl,
-        vehicle_photo_url: vehiclePhotoUrl,
-      },
-    ]);
-  
-    if (error) {
-      alert("Error saving data");
+      const vehiclePhotoUrl = supabase.storage
+        .from("vehicle-photos")
+        .getPublicUrl(vehicleFileName).data.publicUrl;
+      
+      // Insert data into database
+      const { error } = await supabase.from("vehicles").insert([
+        {
+          vehicle_number: formData.vehicleNumber,
+          driver_number: formData.driverNumber,
+          bill_amount: formData.billAmount,
+          bill_photo_url: billPhotoUrl,
+          vehicle_photo_url: vehiclePhotoUrl,
+        },
+      ]);
+    
+      if (error) {
+        toast.error("Error saving data");
+        console.error(error);
+      } else {
+        toast.success("Vehicle Entry Saved Successfully");
+        // Clear form fields after successful submission
+        setFormData({
+          vehicleNumber: "",
+          driverNumber: "",
+          billAmount: "",
+          billPhoto: null,
+          vehiclePhoto: null,
+        });
+        // Reset file inputs
+        const billInput = document.querySelector('input[name="billPhoto"]');
+        const vehicleInput = document.querySelector('input[name="vehiclePhoto"]');
+        if (billInput) billInput.value = "";
+        if (vehicleInput) vehicleInput.value = "";
+      }
+    } catch (error) {
+      toast.error("An unexpected error occurred");
       console.error(error);
-    } else {
-      alert("Vehicle Entry Saved Successfully");
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
   
 
   return (
@@ -197,9 +217,10 @@ const vehiclePhotoUrl = supabase.storage
           <div className="pt-4">
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition duration-300"
+              disabled={isSubmitting}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition duration-300"
             >
-              Submit Vehicle Entry
+              {isSubmitting ? "Submitting..." : "Submit Vehicle Entry"}
             </button>
           </div>
 
